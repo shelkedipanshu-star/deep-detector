@@ -1,0 +1,22 @@
+Epoch 1: train_loss=0.6975 val_acc=0.5875 val_prec=0.5556 val_rec=0.8750 val_f1=0.6796
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 2: train_loss=0.6397 val_acc=0.6000 val_prec=0.5645 val_rec=0.8750 val_f1=0.6863
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 3: train_loss=0.5982 val_acc=0.6250 val_prec=0.5833 val_rec=0.8750 val_f1=0.7000
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 4: train_loss=0.5749 val_acc=0.6750 val_prec=0.6207 val_rec=0.9000 val_f1=0.7347
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 5: train_loss=0.5333 val_acc=0.6875 val_prec=0.6364 val_rec=0.8750 val_f1=0.7368
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 6: train_loss=0.5158 val_acc=0.8125 val_prec=0.7451 val_rec=0.9500 val_f1=0.8352
+Saved best checkpoint to C:\meet\deep\models\best.pt
+Epoch 7: train_loss=0.4767 val_acc=0.7750 val_prec=0.7391 val_rec=0.8500 val_f1=0.7907
+Epoch 8: train_loss=0.4585 val_acc=0.8000 val_prec=0.8000 val_rec=0.8000 val_f1=0.8000
+Epoch 9: train_loss=0.4519 val_acc=0.7625 val_prec=0.8182 val_rec=0.6750 val_f1=0.7397
+Epoch 10: train_loss=0.4027 val_acc=0.7500 val_prec=0.8125 val_rec=0.6500 val_f1=0.7222
+Epoch 11: train_loss=0.4176 val_acc=0.7750 val_prec=0.8667 val_rec=0.6500 val_f1=0.7429
+Epoch 12: train_loss=0.4208 val_acc=0.7500 val_prec=0.8571 val_rec=0.6000 val_f1=0.7059
+Epoch 13: train_loss=0.3602 val_acc=0.7375 val_prec=0.8519 val_rec=0.5750 val_f1=0.6866
+Early stopping triggered.
+Saved calibrated threshold 0.480 (val_acc=0.7625) to C:\meet\deep\models\threshold.txt
+Training complete. Best F1: 0.8351648351648352
