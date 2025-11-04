@@ -1,7 +1,7 @@
 import os
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ExifTags
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
@@ -50,6 +50,32 @@ def save_heatmap_overlay(image_path: str, heatmap: np.ndarray) -> str:
     overlay = (0.5 * orig_np + 0.5 * hm_color).astype(np.uint8)
     Image.fromarray(overlay).save(out_path)
     return out_path
+
+
+def parse_exif_and_fingerprints(image_path: str):
+    info = {}
+    gen_hint = None
+    try:
+        img = Image.open(image_path)
+        exif = {}
+        if hasattr(img, '_getexif') and img._getexif():
+            raw = img._getexif()
+            for k, v in raw.items():
+                name = ExifTags.TAGS.get(k, str(k))
+                exif[name] = str(v)[:120]
+        info['exif'] = exif
+        meta_keys = []
+        try:
+            meta_keys = list(img.info.keys())
+        except Exception:
+            meta_keys = []
+        text_join = ' '.join([f"{k}:{img.info.get(k)}" for k in meta_keys])
+        if any(t in text_join.lower() for t in ['stable diffusion','sdxl','automatic1111','comfyui','midjourney','dall-e','dalle']):
+            gen_hint = 'Possible AI generator metadata found'
+        info['meta_keys'] = meta_keys
+    except Exception:
+        pass
+    return info, gen_hint
 
 
 def generate_pdf_report(upload_dir: str, rec_id: int, file_path: str, label: str, confidence: float, ts: str) -> str:

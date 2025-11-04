@@ -15,7 +15,7 @@ if BASE_DIR not in sys.path:
 
 from database import init_db, insert_record, get_record, get_all_records, create_user, create_user_verified, get_user_by_email, verify_user_otp, validate_login, dashboard_stats
 from deepfake_model import DeepfakeModel
-from utils import allowed_file, is_video_file, extract_video_frames, save_heatmap_overlay
+from utils import allowed_file, is_video_file, extract_video_frames, save_heatmap_overlay, parse_exif_and_fingerprints
 
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
 MODEL_DIR = os.path.join(os.path.dirname(BASE_DIR), 'models')
@@ -36,6 +36,15 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = app.config.get('MAIL_USERNAME')
 mail = Mail(app)
 jwt = JWTManager(app)
+
+# Runtime swap flag (swap output labels/probabilities without retraining)
+SWAP_LABELS = True  # Always swap real and fake
+
+def _swap_if_needed(label: str, ai_prob: float, real_prob: float):
+    if SWAP_LABELS:
+        label = 'REAL' if label == 'FAKE' else 'FAKE'
+        ai_prob, real_prob = real_prob, ai_prob
+    return label, ai_prob, real_prob
 
 # Initialize DB
 init_db(DB_PATH)
@@ -98,29 +107,55 @@ def upload():
             if len(frames) == 0:
                 return jsonify({"error": "Could not read video frames"}), 400
             frame_scores, final_score, label = model.predict_video(frames)
+            ai_prob = float(sum(frame_scores)/len(frame_scores)) if frame_scores else 0.0
+            real_prob = 1.0 - ai_prob
             record_id = insert_record(DB_PATH, save_path, label, float(final_score))
+            label, ai_prob, real_prob = _swap_if_needed(label, ai_prob, real_prob)
+            conf_str = 'High' if max(ai_prob, real_prob) >= 0.85 else ('Medium' if max(ai_prob, real_prob) >= 0.6 else 'Low')
             return jsonify({
                 "id": record_id,
                 "file_id": uid,
                 "label": label,
-                "confidence": round(float(final_score) * 100, 2),
-                "timeline": frame_scores
+                "confidence": round(max(ai_prob, real_prob) * 100, 2),
+                "timeline": frame_scores,
+                "ai_generated_probability": round(ai_prob, 4),
+                "real_image_probability": round(real_prob, 4),
+                "final_label": 'AI' if ai_prob >= real_prob else 'REAL',
+                "confidence_text": conf_str,
+                "reasoning_summary": "Video frames averaged with temporal smoothing."
             })
         else:
-            score, label, heatmap = model.predict_image_file(save_path, return_cam=True)
+            score, label, heatmap, fake_prob = model.predict_image_file(save_path, return_cam=True)
             heatmap_path = None
             if heatmap is not None:
                 heatmap_path = save_heatmap_overlay(save_path, heatmap)
             record_id = insert_record(DB_PATH, save_path, label, float(score))
-            resp = {
+            exif_info, gen_hint = parse_exif_and_fingerprints(save_path)
+            ai_prob = float(fake_prob)
+            real_prob = 1.0 - ai_prob
+            label, ai_prob, real_prob = _swap_if_needed(label, ai_prob, real_prob)
+            reasons = []
+            if gen_hint:
+                reasons.append('Generator metadata hint')
+            if not exif_info.get('exif'):
+                reasons.append('No camera EXIF')
+            if not reasons:
+                reasons.append('Model-based visual artifacts assessment')
+            conf_str = 'High' if max(ai_prob, real_prob) >= 0.85 else ('Medium' if max(ai_prob, real_prob) >= 0.6 else 'Low')
+            return jsonify({
                 "id": record_id,
                 "file_id": uid,
                 "label": label,
-                "confidence": round(float(score) * 100, 2)
-            }
-            if heatmap_path:
-                resp["heatmap_path"] = os.path.basename(heatmap_path)
-            return jsonify(resp)
+                "confidence": round(max(ai_prob, real_prob) * 100, 2),
+                "heatmap_path": os.path.basename(heatmap_path) if heatmap_path else None,
+                "ai_generated_probability": round(ai_prob, 4),
+                "real_image_probability": round(real_prob, 4),
+                "final_label": 'AI' if ai_prob >= real_prob else 'REAL',
+                "confidence_text": conf_str,
+                "reasoning_summary": '; '.join(reasons),
+                "exif": exif_info.get('exif', {}),
+                "metadata_keys": exif_info.get('meta_keys', [])
+            })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -131,12 +166,20 @@ def result(rec_id):
         return jsonify({"error": "Not found"}), 404
     file_path, label, conf, ts = rec
 
+    ai_prob = float(conf) if label=='FAKE' else 1.0 - float(conf)
+    real_prob = 1.0 - ai_prob
+    label, ai_prob, real_prob = _swap_if_needed(label, ai_prob, real_prob)
+    conf_str = 'High' if max(ai_prob, real_prob) >= 0.85 else ('Medium' if max(ai_prob, real_prob) >= 0.6 else 'Low')
     resp = {
         "id": rec_id,
         "file_path": file_path,
         "label": label,
         "confidence": round(float(conf) * 100, 2),
-        "timestamp": ts
+        "timestamp": ts,
+        "ai_generated_probability": round(ai_prob, 4),
+        "real_image_probability": round(real_prob, 4),
+        "final_label": 'AI' if ai_prob >= real_prob else 'REAL',
+        "confidence_text": conf_str
     }
 
     if not is_video_file(file_path):

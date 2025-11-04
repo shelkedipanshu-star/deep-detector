@@ -142,7 +142,7 @@ class DeepfakeModel:
         if self.invert_logits:
             fake_prob = 1.0 - fake_prob
         label = 'FAKE' if fake_prob >= self.threshold else 'REAL'
-        conf = fake_prob if label=='FAKE' else 1.0 - fake_prob
+        conf = max(fake_prob, 1.0 - fake_prob)
 
         heatmap = None
         if return_cam and GradCAM is not None:
@@ -151,7 +151,7 @@ class DeepfakeModel:
             # use first view for CAM
             grayscale_cam = cam(input_tensor=x[:1], targets=None)[0]
             heatmap = grayscale_cam
-        return conf, label, heatmap
+        return conf, label, heatmap, fake_prob
 
     def predict_image_file(self, path: str, return_cam: bool = False):
         img = Image.open(path).convert('RGB')
